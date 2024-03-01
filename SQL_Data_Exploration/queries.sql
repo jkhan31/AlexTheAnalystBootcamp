@@ -92,9 +92,69 @@ WHERE cd.continent IS NOT NULL
 ORDER BY 1,2;
 
 -- Using CTE to perform Calculation on Partition By in previous query
-
+WITH running_vac_total AS (
+	SELECT 
+		cd.location, 
+		cd.date,
+		cd.population, 
+		cv.new_vaccinations,
+		SUM(cv.new_vaccinations) OVER(PARTITION by cd.location ORDER BY cd.location, cd.date) AS running_total_vaccinations
+	FROM covid_deaths cd 
+		JOIN covid_vaccinations cv 
+			ON cd.location = cv.location
+				AND cd.date = cv.date
+	WHERE cd.continent IS NOT NULL
+	ORDER BY 1,2
+) SELECT
+	location,
+	date,
+	population,
+	running_total_vaccinations,
+	ROUND(running_total_vaccinations/population * 100.0, 2) AS running_pct_vaccinations
+FROM running_vac_total;
 
 -- Using Temp Table to perform Calculation on Partition By in previous query
+DROP TABLE IF EXISTS PercentPopulationVaccinated;
+CREATE TABLE PercentPopulationVaccinated (
+	continent varchar,
+	location varchar,
+	date date,
+	population numeric,
+	new_vaccinations numeric,
+	running_total_vaccinations numeric
+);
 
+INSERT INTO PercentPopulationVaccinated
+SELECT 
+	cd.continent,
+	cd.location, 
+	cd.date,
+	cd.population, 
+	cv.new_vaccinations,
+	SUM(cv.new_vaccinations) OVER(PARTITION by cd.location ORDER BY cd.location, cd.date) AS running_total_vaccinations
+FROM covid_deaths cd 
+	JOIN covid_vaccinations cv 
+		ON cd.location = cv.location
+			AND cd.date = cv.date
+WHERE cd.continent IS NOT NULL
+ORDER BY 1,2,3;
+
+SELECT *, ROUND(running_total_vaccinations/population*100.0,2) AS running_pct_vaccinations
+FROM PercentPopulationVaccinated;
 
 -- Creating View to store data for later visualizations
+CREATE VIEW pct_population_vaccinated AS (
+	SELECT 
+	cd.continent,
+	cd.location, 
+	cd.date,
+	cd.population, 
+	cv.new_vaccinations,
+	SUM(cv.new_vaccinations) OVER(PARTITION by cd.location ORDER BY cd.location, cd.date) AS running_total_vaccinations
+FROM covid_deaths cd 
+	JOIN covid_vaccinations cv 
+		ON cd.location = cv.location
+			AND cd.date = cv.date
+WHERE cd.continent IS NOT NULL
+ORDER BY 1,2,3
+);
